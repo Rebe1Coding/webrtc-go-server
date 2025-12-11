@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Caller - Premium</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1b1c21;
+            --bg-secondary: #1f2024;
+            --card-bg: rgba(28, 29, 34, 0.88);
+            --accent: #5b7cff;
+            --accent-hover: #7a95ff;
+            --error: #d4494a;
+            --success: #1f8f4b;
+            --meta: #a0a3b0;
+            --text-primary: #e8e9ed;
+            --text-secondary: #8a8d98;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            font-size: 14px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1400px;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeInDown 0.6s ease;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent) 0%, #8ba3ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        /* Glass Cards */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 28px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            animation: fadeInUp 0.6s ease;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--error);
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: var(--success);
+        }
+
+        /* Terminal Input */
+        .terminal-input-group {
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        .terminal-label {
+            color: var(--meta);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .terminal-input-wrapper {
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+            transition: all 0.3s ease;
+        }
+
+        .terminal-input-wrapper:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(91, 124, 255, 0.15);
+        }
+
+        .terminal-prompt {
+            color: var(--accent);
+            margin-right: 8px;
+            font-weight: 600;
+        }
+
+        .terminal-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .terminal-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        /* Warp-style Buttons */
+        .btn {
+            position: relative;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            padding: 2px;
+            background: linear-gradient(135deg, var(--accent), #8ba3ff);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .btn:hover::before {
+            opacity: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #7a90ff 100%);
+            color: white;
+            box-shadow: 0 4px 16px rgba(91, 124, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(91, 124, 255, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--accent);
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+            box-shadow: 0 4px 16px rgba(212, 73, 74, 0.3);
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(212, 73, 74, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Action Grid */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        /* Video Container */
+        .video-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .video-wrapper {
+            position: relative;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            border: 1px solid var(--border);
+        }
+
+        .video-wrapper video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-label {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--accent);
+        }
+
+        /* Log Output */
+        .log-container {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            animation: fadeIn 0.3s ease;
+            line-height: 1.6;
+        }
+
+        .log-entry.success {
+            color: var(--success);
+        }
+
+        .log-entry.error {
+            color: var(--error);
+        }
+
+        .log-entry.info {
+            color: var(--meta);
+        }
+
+        .log-timestamp {
+            color: var(--text-secondary);
+            margin-right: 8px;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .video-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .action-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">⚡ WebRTC Caller</div>
+            <div class="subtitle">Premium Video & Audio Calling</div>
+        </div>
+
+        <!-- Login Card -->
+        <div class="card" id="loginCard">
+            <div class="card-title">
+                <span class="status-dot"></span>
+                Authentication
+            </div>
+            <div class="terminal-input-group">
+                <div class="terminal-label">Username</div>
+                <div class="terminal-input-wrapper">
+                    <span class="terminal-prompt">></span>
+                    <input type="text" class="terminal-input" id="usernameInput" placeholder="Enter your username...">
+                </div>
+            </div>
+            <div class="terminal-input-group">
+                <div class="terminal-label">Server URL</div>
+                <div class="terminal-input-wrapper">
+                    <span class="terminal-prompt">></span>
+                    <input type="text" class="terminal-input" id="serverUrlInput" value="http://localhost:8000" placeholder="http://localhost:8000">
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="login()">
+                🚀 Connect
+            </button>
+        </div>
+
+        <!-- Main Interface (hidden initially) -->
+        <div id="mainInterface" class="hidden">
+            <!-- Status Card -->
+            <div class="card">
+                <div class="card-title">
+                    <span class="status-dot connected" id="statusDot"></span>
+                    Status: <span id="statusText">Connected</span>
+                </div>
+                <div style="color: var(--meta); font-size: 12px;">
+                    User: <strong id="currentUser" style="color: var(--accent);"></strong>
+                </div>
+            </div>
+
+            <!-- Call Controls -->
+            <div class="card">
+                <div class="card-title">📞 Call Controls</div>
+                <div class="terminal-input-group">
+                    <div class="terminal-label">Target User</div>
+                    <div class="terminal-input-wrapper">
+                        <span class="terminal-prompt">></span>
+                        <input type="text" class="terminal-input" id="targetInput" placeholder="username to call...">
+                    </div>
+                </div>
+                <div class="action-grid">
+                    <button class="btn btn-primary" onclick="startCall('video')">
+                        📹 Video Call
+                    </button>
+                    <button class="btn btn-primary" onclick="startCall('audio')">
+                        🎤 Audio Call
+                    </button>
+                    <button class="btn btn-danger hidden" id="endCallBtn" onclick="endCall()">
+                        📵 End Call
+                    </button>
+                </div>
+            </div>
+
+            <!-- Incoming Call (hidden) -->
+            <div class="card hidden" id="incomingCallCard">
+                <div class="card-title">📞 Incoming Call</div>
+                <div style="margin: 16px 0;">
+                    <strong id="callerName" style="color: var(--accent);"></strong> is calling you...
+                </div>
+                <div class="action-grid">
+                    <button class="btn btn-primary" onclick="acceptCall()">
+                        ✅ Accept
+                    </button>
+                    <button class="btn btn-danger" onclick="declineCall()">
+                        ❌ Decline
+                    </button>
+                </div>
+            </div>
+
+            <!-- Video Streams -->
+            <div class="card hidden" id="videoCard">
+                <div class="card-title">📺 Video Streams</div>
+                <div class="video-container">
+                    <div class="video-wrapper">
+                        <video id="localVideo" autoplay muted playsinline></video>
+                        <div class="video-label">You</div>
+                    </div>
+                    <div class="video-wrapper">
+                        <video id="remoteVideo" autoplay playsinline></video>
+                        <div class="video-label">Remote</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs -->
+            <div class="card">
+                <div class="card-title">📋 Activity Log</div>
+                <div class="log-container" id="logContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        let serverUrl = 'http://localhost:8000';
+        let token = null;
+        let username = null;
+        let ws = null;
+        let peerConnection = null;
+        let localStream = null;
+        let currentSession = null;
+
+        // ICE Servers (STUN)
+        const iceServers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        // Logging
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span>${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // Login
+        async function login() {
+            username = document.getElementById('usernameInput').value.trim();
+            serverUrl = document.getElementById('serverUrlInput').value.trim();
+
+            if (!username) {
+                alert('Please enter username');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${serverUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+
+                const data = await response.json();
+                token = data.token;
+
+                document.getElementById('loginCard').classList.add('hidden');
+                document.getElementById('mainInterface').classList.remove('hidden');
+                document.getElementById('currentUser').textContent = username;
+
+                log(`✅ Logged in as ${username}`, 'success');
+                connectWebSocket();
+            } catch (error) {
+                log(`❌ Login failed: ${error.message}`, 'error');
+            }
+        }
+
+        // WebSocket Connection
+        function connectWebSocket() {
+            const wsUrl = serverUrl.replace('http', 'ws') + `/ws?token=${token}`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                log('🔌 WebSocket connected', 'success');
+                document.getElementById('statusDot').classList.add('connected');
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                handleWebSocketMessage(message);
+            };
+
+            ws.onerror = (error) => {
+                log('❌ WebSocket error', 'error');
+            };
+
+            ws.onclose = () => {
+                log('🔌 WebSocket disconnected', 'info');
+                document.getElementById('statusDot').classList.remove('connected');
+            };
+        }
+
+        // Handle WebSocket Messages
+        async function handleWebSocketMessage(message) {
+            log(`📨 Received: ${message.event}`, 'info');
+
+            if (message.event === 'session_updated') {
+                const session = message.data;
+                currentSession = session;
+
+                if (session.status === 'pending' && session.target === username) {
+                    // Incoming call
+                    document.getElementById('callerName').textContent = session.caller;
+                    document.getElementById('incomingCallCard').classList.remove('hidden');
+                    log(`📞 Incoming ${session.type} call from ${session.caller}`, 'info');
+                } else if (session.status === 'active') {
+                    log('✅ Call accepted, establishing connection...', 'success');
+                    document.getElementById('incomingCallCard').classList.add('hidden');
+                    await setupPeerConnection(session.caller === username);
+                } else if (session.status === 'declined') {
+                    log('❌ Call declined', 'error');
+                    cleanup();
+                } else if (session.status === 'cancelled' || session.status === 'disconnected') {
+                    log('📵 Call ended', 'info');
+                    cleanup();
+                }
+            } else if (message.event === 'signal') {
+                await handleSignal(message.data);
+            }
+        }
+
+        // Start Call
+        async function startCall(type) {
+            const target = document.getElementById('targetInput').value.trim();
+            if (!target) {
+                alert('Please enter target username');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${serverUrl}/api/session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ targetUsername: target, type })
+                });
+
+                const session = await response.json();
+                currentSession = session;
+                log(`📞 Calling ${target}...`, 'info');
+                document.getElementById('endCallBtn').classList.remove('hidden');
+            } catch (error) {
+                log(`❌ Failed to start call: ${error.message}`, 'error');
+            }
+        }
+
+        // Accept Call
+        async function acceptCall() {
+            try {
+                await fetch(`${serverUrl}/api/session/accept`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                log('✅ Accepting call...', 'success');
+            } catch (error) {
+                log(`❌ Failed to accept: ${error.message}`, 'error');
+            }
+        }
+
+        // Decline Call
+        async function declineCall() {
+            try {
+                await fetch(`${serverUrl}/api/session/decline`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                document.getElementById('incomingCallCard').classList.add('hidden');
+                log('❌ Call declined', 'info');
+            } catch (error) {
+                log(`❌ Failed to decline: ${error.message}`, 'error');
+            }
+        }
+
+        // End Call
+        async function endCall() {
+            try {
+                await fetch(`${serverUrl}/api/session`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                cleanup();
+            } catch (error) {
+                log(`❌ Failed to end call: ${error.message}`, 'error');
+            }
+        }
+
+        // Setup WebRTC Peer Connection
+        async function setupPeerConnection(isInitiator) {
+            try {
+                // Get local media
+                const constraints = {
+                    video: currentSession.type === 'video',
+                    audio: true
+                };
+
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('videoCard').classList.remove('hidden');
+
+                // Create peer connection
+                peerConnection = new RTCPeerConnection(iceServers);
+
+                // Add local stream tracks
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Handle remote stream
+                peerConnection.ontrack = (event) => {
+                    log('📺 Received remote stream', 'success');
+                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                };
+
+                // Handle ICE candidates
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        sendSignal({
+                            type: 'ice-candidate',
+                            data: event.candidate
+                        });
+                    }
+                };
+
+                // If initiator, create offer
+                if (isInitiator) {
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    sendSignal({
+                        type: 'offer',
+                        data: offer
+                    });
+                    log('📤 Sent offer', 'info');
+                }
+            } catch (error) {
+                log(`❌ Setup error: ${error.message}`, 'error');
+            }
+        }
+
+        // Handle WebRTC Signals
+        async function handleSignal(signal) {
+            try {
+                if (signal.type === 'offer') {
+                    log('📥 Received offer', 'info');
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    sendSignal({
+                        type: 'answer',
+                        data: answer
+                    });
+                    log('📤 Sent answer', 'info');
+                } else if (signal.type === 'answer') {
+                    log('📥 Received answer', 'info');
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data));
+                } else if (signal.type === 'ice-candidate') {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
+                }
+            } catch (error) {
+                log(`❌ Signal error: ${error.message}`, 'error');
+            }
+        }
+
+        // Send Signal via WebSocket
+        function sendSignal(signal) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    event: 'signal',
+                    data: signal
+                }));
+            }
+        }
+
+        // Cleanup
+        function cleanup() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            document.getElementById('videoCard').classList.add('hidden');
+            document.getElementById('endCallBtn').classList.add('hidden');
+            document.getElementById('incomingCallCard').classList.add('hidden');
+            currentSession = null;
+            log('Cleaned up resources', 'info');
+        }
+
+        // Enter key support
+        document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+        document.getElementById('targetInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') startCall('video');
+        });
+    </script>
+</body>
+</html>

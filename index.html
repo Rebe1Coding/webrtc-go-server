@@ -37,7 +37,6 @@
             font-size: 14px;
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -62,7 +61,6 @@
             padding: 40px 20px;
         }
 
-        /* Header */
         .header {
             text-align: center;
             margin-bottom: 40px;
@@ -84,7 +82,6 @@
             font-size: 13px;
         }
 
-        /* Glass Cards */
         .card {
             background: var(--card-bg);
             backdrop-filter: blur(20px);
@@ -125,7 +122,6 @@
             background: var(--success);
         }
 
-        /* Terminal Input */
         .terminal-input-group {
             margin-bottom: 16px;
             position: relative;
@@ -176,7 +172,6 @@
             color: var(--text-secondary);
         }
 
-        /* Warp-style Buttons */
         .btn {
             position: relative;
             padding: 12px 24px;
@@ -254,7 +249,6 @@
             transform: none !important;
         }
 
-        /* Action Grid */
         .action-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -262,7 +256,6 @@
             margin-top: 20px;
         }
 
-        /* Video Container */
         .video-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -298,7 +291,6 @@
             color: var(--accent);
         }
 
-        /* Log Output */
         .log-container {
             background: rgba(0, 0, 0, 0.3);
             border: 1px solid var(--border);
@@ -333,7 +325,6 @@
             margin-right: 8px;
         }
 
-        /* Animations */
         @keyframes fadeInUp {
             from {
                 opacity: 0;
@@ -366,7 +357,6 @@
             50% { opacity: 0.5; }
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
             .video-container {
                 grid-template-columns: 1fr;
@@ -377,7 +367,6 @@
             }
         }
 
-        /* Hidden */
         .hidden {
             display: none !important;
         }
@@ -390,7 +379,6 @@
             <div class="subtitle">Premium Video & Audio Calling</div>
         </div>
 
-        <!-- Login Card -->
         <div class="card" id="loginCard">
             <div class="card-title">
                 <span class="status-dot"></span>
@@ -407,7 +395,7 @@
                 <div class="terminal-label">Server URL</div>
                 <div class="terminal-input-wrapper">
                     <span class="terminal-prompt">></span>
-                    <input type="text" class="terminal-input" id="serverUrlInput" value="http://localhost:8000" placeholder="http://localhost:8000">
+                    <input type="text" class="terminal-input" id="serverUrlInput" value="ws://localhost:8000/ws" placeholder="ws://localhost:8000/ws">
                 </div>
             </div>
             <button class="btn btn-primary" onclick="login()">
@@ -415,9 +403,7 @@
             </button>
         </div>
 
-        <!-- Main Interface (hidden initially) -->
         <div id="mainInterface" class="hidden">
-            <!-- Status Card -->
             <div class="card">
                 <div class="card-title">
                     <span class="status-dot connected" id="statusDot"></span>
@@ -428,7 +414,6 @@
                 </div>
             </div>
 
-            <!-- Call Controls -->
             <div class="card">
                 <div class="card-title">📞 Call Controls</div>
                 <div class="terminal-input-group">
@@ -446,12 +431,11 @@
                         🎤 Audio Call
                     </button>
                     <button class="btn btn-danger hidden" id="endCallBtn" onclick="endCall()">
-                        📵 End Call
+                        🔴 End Call
                     </button>
                 </div>
             </div>
 
-            <!-- Incoming Call (hidden) -->
             <div class="card hidden" id="incomingCallCard">
                 <div class="card-title">📞 Incoming Call</div>
                 <div style="margin: 16px 0;">
@@ -467,9 +451,8 @@
                 </div>
             </div>
 
-            <!-- Video Streams -->
             <div class="card hidden" id="videoCard">
-                <div class="card-title">📺 Video Streams</div>
+                <div class="card-title">📺 Media Streams</div>
                 <div class="video-container">
                     <div class="video-wrapper">
                         <video id="localVideo" autoplay muted playsinline></video>
@@ -482,7 +465,6 @@
                 </div>
             </div>
 
-            <!-- Logs -->
             <div class="card">
                 <div class="card-title">📋 Activity Log</div>
                 <div class="log-container" id="logContainer"></div>
@@ -491,16 +473,18 @@
     </div>
 
     <script>
-        // Configuration
-        let serverUrl = 'http://localhost:8000';
-        let token = null;
-        let username = null;
+        // Глобальные переменные
         let ws = null;
+        let username = null;
         let peerConnection = null;
         let localStream = null;
-        let currentSession = null;
+        let remoteUser = null;
+        let currentCallType = null;
+        let isInitiator = false;
+        let pendingOffer = null;
+        let pendingCandidates = [];
 
-        // ICE Servers (STUN)
+        // ICE серверы (для работы через NAT)
         const iceServers = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -508,279 +492,365 @@
             ]
         };
 
-        // Logging
+        // Логирование
         function log(message, type = 'info') {
-            const logContainer = document.getElementById('logContainer');
-            const timestamp = new Date().toLocaleTimeString();
+            const container = document.getElementById('logContainer');
             const entry = document.createElement('div');
             entry.className = `log-entry ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
             entry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span>${message}`;
-            logContainer.appendChild(entry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-            console.log(`[${type.toUpperCase()}] ${message}`);
+            
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
         }
 
-        // Login
-        async function login() {
-            username = document.getElementById('usernameInput').value.trim();
-            serverUrl = document.getElementById('serverUrlInput').value.trim();
-
-            if (!username) {
-                alert('Please enter username');
+        // Подключение к серверу
+        function login() {
+            const usernameInput = document.getElementById('usernameInput').value.trim();
+            const serverUrl = document.getElementById('serverUrlInput').value.trim();
+            
+            if (!usernameInput) {
+                alert('Please enter a username');
                 return;
             }
 
+            username = usernameInput;
+            
             try {
-                const response = await fetch(`${serverUrl}/api/auth/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username })
-                });
-
-                const data = await response.json();
-                token = data.token;
-
-                document.getElementById('loginCard').classList.add('hidden');
-                document.getElementById('mainInterface').classList.remove('hidden');
-                document.getElementById('currentUser').textContent = username;
-
-                log(`✅ Logged in as ${username}`, 'success');
-                connectWebSocket();
-            } catch (error) {
-                log(`❌ Login failed: ${error.message}`, 'error');
-            }
-        }
-
-        // WebSocket Connection
-        function connectWebSocket() {
-            const wsUrl = serverUrl.replace('http', 'ws') + `/ws?token=${token}`;
-            ws = new WebSocket(wsUrl);
-
-            ws.onopen = () => {
-                log('🔌 WebSocket connected', 'success');
-                document.getElementById('statusDot').classList.add('connected');
-            };
-
-            ws.onmessage = (event) => {
-                const message = JSON.parse(event.data);
-                handleWebSocketMessage(message);
-            };
-
-            ws.onerror = (error) => {
-                log('❌ WebSocket error', 'error');
-            };
-
-            ws.onclose = () => {
-                log('🔌 WebSocket disconnected', 'info');
-                document.getElementById('statusDot').classList.remove('connected');
-            };
-        }
-
-        // Handle WebSocket Messages
-        async function handleWebSocketMessage(message) {
-            log(`📨 Received: ${message.event}`, 'info');
-
-            if (message.event === 'session_updated') {
-                const session = message.data;
-                currentSession = session;
-
-                if (session.status === 'pending' && session.target === username) {
-                    // Incoming call
-                    document.getElementById('callerName').textContent = session.caller;
-                    document.getElementById('incomingCallCard').classList.remove('hidden');
-                    log(`📞 Incoming ${session.type} call from ${session.caller}`, 'info');
-                } else if (session.status === 'active') {
-                    log('✅ Call accepted, establishing connection...', 'success');
-                    document.getElementById('incomingCallCard').classList.add('hidden');
-                    await setupPeerConnection(session.caller === username);
-                } else if (session.status === 'declined') {
-                    log('❌ Call declined', 'error');
-                    cleanup();
-                } else if (session.status === 'cancelled' || session.status === 'disconnected') {
-                    log('📵 Call ended', 'info');
-                    cleanup();
-                }
-            } else if (message.event === 'signal') {
-                await handleSignal(message.data);
-            }
-        }
-
-        // Start Call
-        async function startCall(type) {
-            const target = document.getElementById('targetInput').value.trim();
-            if (!target) {
-                alert('Please enter target username');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${serverUrl}/api/session`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ targetUsername: target, type })
-                });
-
-                const session = await response.json();
-                currentSession = session;
-                log(`📞 Calling ${target}...`, 'info');
-                document.getElementById('endCallBtn').classList.remove('hidden');
-            } catch (error) {
-                log(`❌ Failed to start call: ${error.message}`, 'error');
-            }
-        }
-
-        // Accept Call
-        async function acceptCall() {
-            try {
-                await fetch(`${serverUrl}/api/session/accept`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                log('✅ Accepting call...', 'success');
-            } catch (error) {
-                log(`❌ Failed to accept: ${error.message}`, 'error');
-            }
-        }
-
-        // Decline Call
-        async function declineCall() {
-            try {
-                await fetch(`${serverUrl}/api/session/decline`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                document.getElementById('incomingCallCard').classList.add('hidden');
-                log('❌ Call declined', 'info');
-            } catch (error) {
-                log(`❌ Failed to decline: ${error.message}`, 'error');
-            }
-        }
-
-        // End Call
-        async function endCall() {
-            try {
-                await fetch(`${serverUrl}/api/session`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                cleanup();
-            } catch (error) {
-                log(`❌ Failed to end call: ${error.message}`, 'error');
-            }
-        }
-
-        // Setup WebRTC Peer Connection
-        async function setupPeerConnection(isInitiator) {
-            try {
-                // Get local media
-                const constraints = {
-                    video: currentSession.type === 'video',
-                    audio: true
+                ws = new WebSocket(serverUrl);
+                
+                ws.onopen = () => {
+                    log('Connected to server', 'success');
+                    ws.send(JSON.stringify({
+                        type: 'login',
+                        username: username
+                    }));
                 };
 
+                ws.onmessage = handleWebSocketMessage;
+                
+                ws.onerror = (error) => {
+                    log('WebSocket error', 'error');
+                    console.error('WebSocket error:', error);
+                };
+                
+                ws.onclose = () => {
+                    log('Disconnected from server', 'error');
+                    document.getElementById('loginCard').classList.remove('hidden');
+                    document.getElementById('mainInterface').classList.add('hidden');
+                };
+                
+            } catch (error) {
+                log('Failed to connect: ' + error.message, 'error');
+            }
+        }
+
+        // Обработка сообщений от сервера
+        async function handleWebSocketMessage(event) {
+            const data = JSON.parse(event.data);
+            
+            switch(data.type) {
+                case 'login_success':
+                    log('Logged in as ' + data.username, 'success');
+                    document.getElementById('loginCard').classList.add('hidden');
+                    document.getElementById('mainInterface').classList.remove('hidden');
+                    document.getElementById('currentUser').textContent = data.username;
+                    break;
+                    
+                case 'incoming_call':
+                    log(`Incoming ${data.callType} call from ${data.from}`, 'info');
+                    remoteUser = data.from;
+                    currentCallType = data.callType;
+                    isInitiator = false;
+                    pendingOffer = null;
+                    pendingCandidates = [];
+                    document.getElementById('callerName').textContent = data.from;
+                    document.getElementById('incomingCallCard').classList.remove('hidden');
+                    break;
+                    
+                case 'offer':
+                    log('Received offer from ' + data.from, 'info');
+                    // Сохраняем offer до принятия звонка
+                    if (!peerConnection) {
+                        pendingOffer = data.offer;
+                        log('Offer saved, waiting for call acceptance', 'info');
+                    } else {
+                        await handleOffer(data.offer, data.from);
+                    }
+                    break;
+                    
+                case 'answer':
+                    log('Received answer from ' + data.from, 'info');
+                    await handleAnswer(data.answer);
+                    break;
+                    
+                case 'ice-candidate':
+                    if (data.candidate) {
+                        // Сохраняем candidates до создания peerConnection
+                        if (!peerConnection) {
+                            pendingCandidates.push(data.candidate);
+                            log('ICE candidate saved, waiting for call acceptance', 'info');
+                        } else {
+                            await handleIceCandidate(data.candidate);
+                        }
+                    }
+                    break;
+                    
+                case 'call_declined':
+                    log('Call declined by ' + data.from, 'error');
+                    cleanupCall();
+                    break;
+                    
+                case 'call_ended':
+                    log('Call ended by ' + data.from, 'info');
+                    cleanupCall();
+                    break;
+                    
+                case 'error':
+                    log('Error: ' + data.message, 'error');
+                    break;
+            }
+        }
+
+        // Начать звонок
+        async function startCall(callType) {
+            const target = document.getElementById('targetInput').value.trim();
+            
+            if (!target) {
+                alert('Please enter a username to call');
+                return;
+            }
+
+            remoteUser = target;
+            currentCallType = callType;
+            isInitiator = true;
+
+            log(`Calling ${target} (${callType})...`, 'info');
+
+            try {
+                // Получаем медиа стрим
+                const constraints = {
+                    audio: true,
+                    video: callType === 'video'
+                };
+                
                 localStream = await navigator.mediaDevices.getUserMedia(constraints);
                 document.getElementById('localVideo').srcObject = localStream;
-                document.getElementById('videoCard').classList.remove('hidden');
-
-                // Create peer connection
-                peerConnection = new RTCPeerConnection(iceServers);
-
-                // Add local stream tracks
+                
+                // Создаём peer connection
+                createPeerConnection();
+                
+                // Добавляем локальные треки
                 localStream.getTracks().forEach(track => {
                     peerConnection.addTrack(track, localStream);
                 });
 
-                // Handle remote stream
-                peerConnection.ontrack = (event) => {
-                    log('📺 Received remote stream', 'success');
-                    document.getElementById('remoteVideo').srcObject = event.streams[0];
-                };
-
-                // Handle ICE candidates
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        sendSignal({
-                            type: 'ice-candidate',
-                            data: event.candidate
-                        });
-                    }
-                };
-
-                // If initiator, create offer
-                if (isInitiator) {
-                    const offer = await peerConnection.createOffer();
-                    await peerConnection.setLocalDescription(offer);
-                    sendSignal({
-                        type: 'offer',
-                        data: offer
-                    });
-                    log('📤 Sent offer', 'info');
-                }
-            } catch (error) {
-                log(`❌ Setup error: ${error.message}`, 'error');
-            }
-        }
-
-        // Handle WebRTC Signals
-        async function handleSignal(signal) {
-            try {
-                if (signal.type === 'offer') {
-                    log('📥 Received offer', 'info');
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data));
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    sendSignal({
-                        type: 'answer',
-                        data: answer
-                    });
-                    log('📤 Sent answer', 'info');
-                } else if (signal.type === 'answer') {
-                    log('📥 Received answer', 'info');
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data));
-                } else if (signal.type === 'ice-candidate') {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
-                }
-            } catch (error) {
-                log(`❌ Signal error: ${error.message}`, 'error');
-            }
-        }
-
-        // Send Signal via WebSocket
-        function sendSignal(signal) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
+                // Уведомляем сервер о звонке
                 ws.send(JSON.stringify({
-                    event: 'signal',
-                    data: signal
+                    type: 'call',
+                    target: target,
+                    callType: callType
+                }));
+
+                // Создаём и отправляем offer
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                ws.send(JSON.stringify({
+                    type: 'offer',
+                    target: target,
+                    offer: offer
+                }));
+
+                log('Offer sent', 'success');
+                showCallUI();
+                
+            } catch (error) {
+                log('Error starting call: ' + error.message, 'error');
+            }
+        }
+
+        // Принять звонок
+        async function acceptCall() {
+            log('Accepting call...', 'info');
+            document.getElementById('incomingCallCard').classList.add('hidden');
+
+            try {
+                const constraints = {
+                    audio: true,
+                    video: currentCallType === 'video'
+                };
+                
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                document.getElementById('localVideo').srcObject = localStream;
+                
+                createPeerConnection();
+                
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Обрабатываем сохранённый offer
+                if (pendingOffer) {
+                    log('Processing pending offer', 'info');
+                    await handleOffer(pendingOffer, remoteUser);
+                    pendingOffer = null;
+                }
+
+                // Обрабатываем сохранённые ICE candidates
+                if (pendingCandidates.length > 0) {
+                    log(`Processing ${pendingCandidates.length} pending ICE candidates`, 'info');
+                    for (const candidate of pendingCandidates) {
+                        await handleIceCandidate(candidate);
+                    }
+                    pendingCandidates = [];
+                }
+
+                showCallUI();
+                
+            } catch (error) {
+                log('Error accepting call: ' + error.message, 'error');
+            }
+        }
+
+        // Отклонить звонок
+        function declineCall() {
+            log('Declining call', 'info');
+            ws.send(JSON.stringify({
+                type: 'decline',
+                target: remoteUser
+            }));
+            document.getElementById('incomingCallCard').classList.add('hidden');
+            remoteUser = null;
+            pendingOffer = null;
+            pendingCandidates = [];
+        }
+
+        // Завершить звонок
+        function endCall() {
+            log('Ending call', 'info');
+            if (remoteUser) {
+                ws.send(JSON.stringify({
+                    type: 'end_call',
+                    target: remoteUser
                 }));
             }
+            cleanupCall();
         }
 
-        // Cleanup
-        function cleanup() {
+        // Создать peer connection
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(iceServers);
+
+            // ICE candidates
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({
+                        type: 'ice-candidate',
+                        target: remoteUser,
+                        candidate: event.candidate
+                    }));
+                }
+            };
+
+            // Получение удалённого стрима
+            peerConnection.ontrack = (event) => {
+                log('Received remote track', 'success');
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
+            };
+
+            // Изменение состояния соединения
+            peerConnection.onconnectionstatechange = () => {
+                log('Connection state: ' + peerConnection.connectionState, 'info');
+                if (peerConnection.connectionState === 'disconnected' || 
+                    peerConnection.connectionState === 'failed') {
+                    cleanupCall();
+                }
+            };
+        }
+
+        // Обработать offer
+        async function handleOffer(offer, from) {
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                ws.send(JSON.stringify({
+                    type: 'answer',
+                    target: from,
+                    answer: answer
+                }));
+                
+                log('Answer sent', 'success');
+                
+            } catch (error) {
+                log('Error handling offer: ' + error.message, 'error');
+            }
+        }
+
+        // Обработать answer
+        async function handleAnswer(answer) {
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+                log('Remote description set', 'success');
+            } catch (error) {
+                log('Error handling answer: ' + error.message, 'error');
+            }
+        }
+
+        // Обработать ICE candidate
+        async function handleIceCandidate(candidate) {
+            try {
+                if (peerConnection && peerConnection.remoteDescription) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                    log('ICE candidate added', 'success');
+                }
+            } catch (error) {
+                console.error('Error adding ICE candidate:', error);
+            }
+        }
+
+        // Показать UI звонка
+        function showCallUI() {
+            document.getElementById('videoCard').classList.remove('hidden');
+            document.getElementById('endCallBtn').classList.remove('hidden');
+        }
+
+        // Очистка после звонка
+        function cleanupCall() {
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
+            
             if (peerConnection) {
                 peerConnection.close();
                 peerConnection = null;
             }
+            
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
             document.getElementById('videoCard').classList.add('hidden');
             document.getElementById('endCallBtn').classList.add('hidden');
             document.getElementById('incomingCallCard').classList.add('hidden');
-            currentSession = null;
-            log('Cleaned up resources', 'info');
+            
+            remoteUser = null;
+            currentCallType = null;
+            isInitiator = false;
+            pendingOffer = null;
+            pendingCandidates = [];
         }
 
-        // Enter key support
+        // Enter для логина
         document.getElementById('usernameInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') login();
         });
-        document.getElementById('targetInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') startCall('video');
+        
+        document.getElementById('serverUrlInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
         });
     </script>
 </body>

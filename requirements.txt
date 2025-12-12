@@ -1,2 +1,2 @@
-aiohttp==3.9.1
-aiortc==1.6.0
+aiohttp
+aiortc

@@ -1,9 +1,19 @@
 FROM python:3.11-slim
 
-# Клонируем Python-репозиторий
-RUN git clone https://github.com/kadr8/webrtc-py.git /app
 WORKDIR /app
 
-# Устанавливаем зависимости и запускаем
+# Копируем файлы зависимостей
+COPY requirements.txt .
+
+# Устанавливаем зависимости
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем файлы приложения
+COPY server.py .
+COPY index.html .
+
+# Открываем порт
+EXPOSE 8000
+
+# Запускаем сервер
 CMD ["python", "server.py"]
